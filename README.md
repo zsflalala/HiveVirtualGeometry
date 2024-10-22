@@ -1,2 +1,3 @@
 # HiveVirtualGeometry
- OpenGLES3.0、C++ render games in Andriod Studio
+ OpenGLES3.2、C++ render games in Andriod Studio.
+ Android 14, API 30
