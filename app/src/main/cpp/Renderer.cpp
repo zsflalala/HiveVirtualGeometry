@@ -1,4 +1,4 @@
-#include "CRenderer.h"
+#include "Renderer.h"
 #include <game-activity/native_app_glue/android_native_app_glue.h>
 #include <GLES3/gl3.h>
 #include <memory>
@@ -9,22 +9,7 @@
 
 hiveVG::CRenderer::~CRenderer()
 {
-    if (m_Display != EGL_NO_DISPLAY) 
-    {
-        eglMakeCurrent(m_Display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-        if (m_Context != EGL_NO_CONTEXT) 
-        {
-            eglDestroyContext(m_Display, m_Context);
-            m_Context = EGL_NO_CONTEXT;
-        }
-        if (m_Surface != EGL_NO_SURFACE) 
-        {
-            eglDestroySurface(m_Display, m_Surface);
-            m_Surface = EGL_NO_SURFACE;
-        }
-        eglTerminate(m_Display);
-        m_Display = EGL_NO_DISPLAY;
-    }
+    __cleanupEGLContext();
     glDeleteVertexArrays(1, &m_TriangleVAOHandle);
     glDeleteProgram(m_ProgramHandle);
 }
@@ -39,6 +24,81 @@ void hiveVG::CRenderer::render()
     // Present the rendered image. This is an implicit glFlush.
     auto SwapResult = eglSwapBuffers(m_Display, m_Surface);
     assert(SwapResult == EGL_TRUE);
+}
+
+void hiveVG::CRenderer::handleInput()
+{
+    auto *pInputBuffer = android_app_swap_input_buffers(m_pApp);
+    if (!pInputBuffer) return;
+
+    // handle motion events (motionEventsCounts can be 0).
+    for (auto i = 0; i < pInputBuffer->motionEventsCount; i++)
+    {
+        auto &MotionEvent = pInputBuffer->motionEvents[i];
+        auto Action = MotionEvent.action;
+
+        // Find the pointer index, mask and bitshift to turn it into a readable value.
+        auto PointerIndex = (Action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK) >> AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
+
+        // get the x and y position of this event if it is not ACTION_MOVE.
+        auto &Pointer = MotionEvent.pointers[PointerIndex];
+        auto PointerX = GameActivityPointerAxes_getX(&Pointer);
+        auto PointerY = GameActivityPointerAxes_getY(&Pointer);
+
+        // determine the action type and process the event accordingly.
+        switch (Action & AMOTION_EVENT_ACTION_MASK)
+        {
+            case AMOTION_EVENT_ACTION_DOWN:
+            case AMOTION_EVENT_ACTION_POINTER_DOWN:
+                LOG_INFO(hiveVG::TAG_KEYWORD::RENDERER_TAG, "Pointer(s): (%d, %f, %f) Pointer Down", Pointer.id, PointerX, PointerY);
+                break;
+
+            case AMOTION_EVENT_ACTION_CANCEL:
+                // treat the CANCEL as an UP event: doing nothing in the app, except
+                // removing the pointer from the cache if pointers are locally saved.
+                // code pass through on purpose.
+            case AMOTION_EVENT_ACTION_UP:
+            case AMOTION_EVENT_ACTION_POINTER_UP:
+                LOG_INFO(hiveVG::TAG_KEYWORD::RENDERER_TAG, "Pointer(s): (%d, %f, %f) Pointer Up", Pointer.id, PointerX, PointerY);
+                break;
+
+            case AMOTION_EVENT_ACTION_MOVE:
+                // There is no pointer index for ACTION_MOVE, only a snapshot of
+                // all active pointers; app needs to cache previous active pointers
+                // to figure out which ones are actually moved.
+                for (auto Index = 0; Index < MotionEvent.pointerCount; Index++)
+                {
+                    Pointer = MotionEvent.pointers[Index];
+                    PointerX = GameActivityPointerAxes_getX(&Pointer);
+                    PointerY = GameActivityPointerAxes_getY(&Pointer);
+                    LOG_INFO(hiveVG::TAG_KEYWORD::RENDERER_TAG, "Pointer(s): (%d, %f, %f) Pointer Move", Pointer.id, PointerX, PointerY);
+
+                    if (Index != (MotionEvent.pointerCount - 1)) LOG_INFO(hiveVG::TAG_KEYWORD::RENDERER_TAG, ",");
+                }
+                break;
+            default:
+                LOG_INFO(hiveVG::TAG_KEYWORD::RENDERER_TAG, "Unknown MotionEvent Action: %d", Action);
+        }
+    }
+    android_app_clear_motion_events(pInputBuffer);
+
+    // handle input key events.
+    for (auto i = 0; i < pInputBuffer->keyEventsCount; i++)
+    {
+        auto &KeyEvent = pInputBuffer->keyEvents[i];
+        switch (KeyEvent.action)
+        {
+            case AKEY_EVENT_ACTION_DOWN:
+                LOG_INFO(hiveVG::TAG_KEYWORD::RENDERER_TAG, "Key: %d, Key Down", KeyEvent.keyCode);
+                break;
+            case AKEY_EVENT_ACTION_UP:
+                LOG_INFO(hiveVG::TAG_KEYWORD::RENDERER_TAG, "Key: %d, Key Up", KeyEvent.keyCode);
+                break;
+            default:
+                LOG_INFO(hiveVG::TAG_KEYWORD::RENDERER_TAG, "Key: %d, Unknown KeyEvent Action: %d", KeyEvent.keyCode, KeyEvent.action);
+        }
+    }
+    android_app_clear_key_events(pInputBuffer);
 }
 
 void hiveVG::CRenderer::__initRenderer()
@@ -205,3 +265,22 @@ void hiveVG::CRenderer::__createProgram()
     m_ProgramHandle = __linkProgram(VertShaderHandle, FragShaderHandle);
 }
 
+void hiveVG::CRenderer::__cleanupEGLContext()
+{
+    if (m_Display != EGL_NO_DISPLAY)
+    {
+        eglMakeCurrent(m_Display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        if (m_Context != EGL_NO_CONTEXT)
+        {
+            eglDestroyContext(m_Display, m_Context);
+            m_Context = EGL_NO_CONTEXT;
+        }
+        if (m_Surface != EGL_NO_SURFACE)
+        {
+            eglDestroySurface(m_Display, m_Surface);
+            m_Surface = EGL_NO_SURFACE;
+        }
+        eglTerminate(m_Display);
+        m_Display = EGL_NO_DISPLAY;
+    }
+}

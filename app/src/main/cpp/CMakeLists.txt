@@ -9,7 +9,7 @@ project("virtualgeometry")
 # one used for loading in your Kotlin/Java or AndroidManifest.txt files.
 add_library(virtualgeometry SHARED
         main.cpp
-        CRenderer.cpp
+        Renderer.cpp
 )
 
 # Searches for a package provided by the game activity dependency

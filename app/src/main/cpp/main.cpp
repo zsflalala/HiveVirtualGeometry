@@ -2,7 +2,7 @@
 #include <game-activity/GameActivity.cpp>
 #include <game-activity/native_app_glue/android_native_app_glue.c>
 #include <game-text-input/gametextinput.cpp>
-#include "CRenderer.h"
+#include "Renderer.h"
 #include "Common.h"
 
 extern "C"
@@ -98,10 +98,10 @@ extern "C"
                         }
                 }
             }
-
             if (vApp->userData)
             {
                 auto *pRenderer = reinterpret_cast<hiveVG::CRenderer*>(vApp->userData);
+                pRenderer->handleInput();
                 pRenderer->render();
             }
         } while (!vApp->destroyRequested);

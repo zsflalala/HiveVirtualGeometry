@@ -14,6 +14,7 @@ namespace hiveVG
         virtual ~CRenderer();
 
         void render();
+        void handleInput();
 
     private:
         void          __initRenderer();
@@ -21,8 +22,9 @@ namespace hiveVG
         static GLuint __linkProgram(GLuint vVertShaderHandle, GLuint vFragShaderHandle);
         void          __createTriangleVAO();
         void          __createProgram();
+        void          __cleanupEGLContext();
 
-        android_app* m_pApp;
+        android_app* m_pApp              = nullptr;
         GLuint       m_ProgramHandle     = 0;
         GLuint       m_TriangleVAOHandle = 0;
         EGLDisplay   m_Display           = EGL_NO_DISPLAY;
